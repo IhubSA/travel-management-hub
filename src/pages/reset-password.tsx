@@ -1,0 +1,12 @@
+import React from 'react'
+import { ResetPasswordForm } from '@/components/auth/ResetPasswordForm'
+
+export default function ResetPasswordPage() {
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-12">
+      <div className="w-full">
+        <ResetPasswordForm />
+      </div>
+    </main>
+  )
+}

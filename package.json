@@ -1,0 +1,45 @@
+{
+  "name": "travel-management-hub",
+  "version": "0.3.0",
+  "description": "Travel Management Hub for Angels Resource Centres NPO",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "type-check": "tsc --noEmit",
+    "format": "prettier --write \"src/**/*.{ts,tsx,json,css,md}\"",
+    "db:types": "supabase gen types typescript --db-url $DATABASE_URL > src/types/database.ts"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "next": "^14.2.11",
+    "@supabase/supabase-js": "^2.45.4",
+    "@supabase/auth-helpers-nextjs": "^0.10.8",
+    "@supabase/auth-helpers-react": "^0.4.6",
+    "react-hook-form": "^7.51.5",
+    "zod": "^3.23.8",
+    "axios": "^1.7.7",
+    "date-fns": "^3.6.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@types/node": "^20.12.12",
+    "@types/next": "^9.0.0",
+    "autoprefixer": "^10.4.19",
+    "postcss": "^8.4.38",
+    "tailwindcss": "^3.4.3",
+    "prettier": "^3.3.3",
+    "eslint": "^8.57.0",
+    "eslint-config-next": "^14.2.11",
+    "@supabase/cli": "^1.153.6"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}
