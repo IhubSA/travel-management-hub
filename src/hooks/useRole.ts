@@ -9,15 +9,15 @@ export function useRole() {
   const { profile } = useAuth()
 
   return {
-    role: (profile?.role as UserRole | undefined) || null,
-    isSuperAdmin: profile?.role === 'SUPER_ADMIN',
-    isStaff: profile?.role === 'STAFF',
-    isHOD: profile?.role === 'HOD',
-    isTravelOfficer: profile?.role === 'TRAVEL_OFFICER',
-    isFinance: profile?.role === 'FINANCE',
-    isCEO: profile?.role === 'CEO',
+    role: (profile?.user_role as UserRole | undefined) || null,
+    isSuperAdmin: profile?.user_role === 'SUPER_ADMIN',
+    isStaff: profile?.user_role === 'STAFF',
+    isHOD: profile?.user_role === 'HOD',
+    isTravelOfficer: profile?.user_role === 'TRAVEL_OFFICER',
+    isFinance: profile?.user_role === 'FINANCE',
+    isCEO: profile?.user_role === 'CEO',
     hasRole: (role: UserRole | UserRole[]) => {
-      if (!profile?.role) return false
+      if (!profile?.user_role) return false
       return Array.isArray(role) ? role.includes(profile.role as UserRole) : profile.role === role
     },
   }
