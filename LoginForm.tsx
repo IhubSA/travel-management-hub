@@ -1,9 +1,10 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/context/AuthContext'
 
 interface LoginFormProps {
   redirectTo?: string
@@ -16,6 +17,14 @@ export function LoginForm({ redirectTo = '/dashboard' }: LoginFormProps) {
   const [error, setError] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
   const router = useRouter()
+  const { user } = useAuth()
+
+  // Auto-redirect if already logged in
+  useEffect(() => {
+    if (user) {
+      router.push(redirectTo)
+    }
+  }, [user, router, redirectTo])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
