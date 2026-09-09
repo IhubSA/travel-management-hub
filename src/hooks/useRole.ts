@@ -18,7 +18,7 @@ export function useRole() {
     isCEO: profile?.user_role === 'CEO',
     hasRole: (role: UserRole | UserRole[]) => {
       if (!profile?.user_role) return false
-      return Array.isArray(role) ? role.includes(profile.role as UserRole) : profile.role === role
+      return Array.isArray(role) ? role.includes(profile.user_role as UserRole) : profile.user_role === role
     },
   }
 }
