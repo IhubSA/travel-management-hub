@@ -1,139 +1,227 @@
 'use client'
 
-import React, { useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import { MainLayout } from '@/components/layout/MainLayout'
-import { useAuth } from '@/context/AuthContext'
-import { useRole } from '@/hooks/useRole'
+import {
+  Button,
+  EmptyState,
+  PageHeader,
+  Select,
+  Spinner,
+  StatusBadge,
+  TextInput,
+} from '@/components/common'
+import { useRole, useViewer } from '@/hooks/useRole'
+import { listRequests, QUEUE_STATUSES } from '@/services/travel-request.service'
+import type { TravelRequestSummary } from '@/types/travel-request'
+import { STATUS_LABELS } from '@/types/travel-request'
+import type { TravelStatus } from '@/types/database'
+import { formatCurrency, formatDate } from '@/utils/format'
 
-export default function ProfilePage() {
-  const { user } = useAuth()
-  const { role } = useRole()
-  const [formData, setFormData] = useState({
-    firstName: 'John',
-    lastName: 'Doe',
-    email: user?.email || '',
-    phone: '+27 21 555 0123',
-    department: 'Sales',
-  })
+type Tab = 'all' | 'mine' | 'queue'
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    alert('Profile updated successfully!')
-  }
+const STATUS_FILTER_OPTIONS: TravelStatus[] = [
+  'DRAFT',
+  'HOD_REVIEW',
+  'TRAVEL_OFFICER_REVIEW',
+  'TRAVEL_PROCESSING',
+  'FINANCE_REVIEW',
+  'BUDGET_EXCEPTION',
+  'CEO_APPROVAL',
+  'FULLY_APPROVED',
+  'BOOKING_COMPLETE',
+  'TRAVEL_COMPLETED',
+  'REJECTED',
+  'CANCELLED',
+]
+
+export default function TravelRequestsPage() {
+  const viewer = useViewer()
+  const { role, isApprover } = useRole()
+
+  const [tab, setTab] = useState<Tab>('all')
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState<TravelStatus | ''>('')
+  const [rows, setRows] = useState<TravelRequestSummary[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const hasQueue = useMemo(
+    () => Boolean(role && (QUEUE_STATUSES[role] ?? []).length > 0),
+    [role]
+  )
+
+  const load = useCallback(async () => {
+    if (!viewer) return
+    setLoading(true)
+    try {
+      const result = await listRequests(viewer, {
+        onlyMine: tab === 'mine',
+        onlyQueue: tab === 'queue',
+        statuses: statusFilter ? [statusFilter] : undefined,
+        search,
+      })
+      setRows(result)
+    } finally {
+      setLoading(false)
+    }
+  }, [viewer, tab, statusFilter, search])
+
+  useEffect(() => {
+    load()
+  }, [load])
+
+  const tabs: Array<{ id: Tab; label: string; show: boolean }> = [
+    { id: 'all', label: 'All I can see', show: true },
+    { id: 'mine', label: 'My requests', show: true },
+    {
+      id: 'queue',
+      label: 'Awaiting my action',
+      show: hasQueue && isApprover,
+    },
+  ]
 
   return (
     <MainLayout>
-      <div className="max-w-2xl mx-auto space-y-6">
-        {/* Header */}
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">My Profile</h1>
-          <p className="text-gray-600 mt-2">Manage your personal information</p>
-        </div>
+      <div className="space-y-6">
+        <PageHeader
+          title="Travel requests"
+          description="Raise a new request, track your own, and see anything awaiting you."
+          actions={
+            <Link href="/travel-requests/new">
+              <Button>+ New request</Button>
+            </Link>
+          }
+        />
 
-        {/* Profile Card */}
-        <div className="bg-white rounded-lg shadow p-8">
-          <div className="flex items-center gap-6 mb-8">
-            <div className="w-24 h-24 bg-blue-600 text-white rounded-full flex items-center justify-center text-4xl font-bold">
-              {user?.email?.charAt(0).toUpperCase()}
+        <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
+          {/* Filters */}
+          <div className="flex flex-col gap-3 border-b border-gray-100 p-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-wrap gap-1">
+              {tabs
+                .filter((t) => t.show)
+                .map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setTab(t.id)}
+                    className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                      tab === t.id
+                        ? 'bg-blue-600 text-white'
+                        : 'text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
             </div>
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900">
-                {formData.firstName} {formData.lastName}
-              </h2>
-              <p className="text-gray-600">{user?.email}</p>
-              <p className="text-blue-600 font-medium mt-2">{role}</p>
+
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <TextInput
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search number, name, destination…"
+                className="sm:w-64"
+              />
+              <Select
+                value={statusFilter}
+                onChange={(e) =>
+                  setStatusFilter(e.target.value as TravelStatus | '')
+                }
+                className="sm:w-52"
+              >
+                <option value="">All statuses</option>
+                {STATUS_FILTER_OPTIONS.map((s) => (
+                  <option key={s} value={s}>
+                    {STATUS_LABELS[s]}
+                  </option>
+                ))}
+              </Select>
             </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  First Name
-                </label>
-                <input
-                  type="text"
-                  value={formData.firstName}
-                  onChange={(e) =>
-                    setFormData({ ...formData, firstName: e.target.value })
-                  }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Last Name
-                </label>
-                <input
-                  type="text"
-                  value={formData.lastName}
-                  onChange={(e) =>
-                    setFormData({ ...formData, lastName: e.target.value })
-                  }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Email Address
-                </label>
-                <input
-                  type="email"
-                  value={formData.email}
-                  disabled
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500"
-                />
-                <p className="text-xs text-gray-500 mt-1">Email cannot be changed</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Phone Number
-                </label>
-                <input
-                  type="tel"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Department
-                </label>
-                <input
-                  type="text"
-                  value={formData.department}
-                  disabled
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500"
-                />
-                <p className="text-xs text-gray-500 mt-1">Contact admin to change</p>
-              </div>
+          {/* Table */}
+          {loading ? (
+            <Spinner label="Loading requests…" />
+          ) : rows.length === 0 ? (
+            <div className="p-4">
+              <EmptyState
+                title="Nothing to show here"
+                description={
+                  tab === 'queue'
+                    ? 'Your approval queue is clear.'
+                    : tab === 'mine'
+                      ? 'You have not raised any travel requests yet.'
+                      : 'No requests match the current filters.'
+                }
+                action={
+                  tab !== 'queue' ? (
+                    <Link href="/travel-requests/new">
+                      <Button>Create a travel request</Button>
+                    </Link>
+                  ) : undefined
+                }
+              />
             </div>
-
-            <div className="flex gap-3 pt-4">
-              <button
-                type="submit"
-                className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium"
-              >
-                Save Changes
-              </button>
-              <button
-                type="button"
-                className="bg-gray-300 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-400 transition-colors font-medium"
-              >
-                Cancel
-              </button>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[860px] text-sm">
+                <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+                  <tr>
+                    <th className="px-4 py-3 font-medium">Request</th>
+                    <th className="px-4 py-3 font-medium">Requester</th>
+                    <th className="px-4 py-3 font-medium">Destination</th>
+                    <th className="px-4 py-3 font-medium">Travel date</th>
+                    <th className="px-4 py-3 font-medium">Project</th>
+                    <th className="px-4 py-3 text-right font-medium">Estimated</th>
+                    <th className="px-4 py-3 font-medium">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {rows.map((row) => (
+                    <tr key={row.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3">
+                        <Link
+                          href={`/travel-requests/${row.id}`}
+                          className="font-medium text-blue-600 hover:underline"
+                        >
+                          {row.request_number}
+                        </Link>
+                        <p className="text-xs text-gray-500">
+                          {row.number_of_travellers} traveller
+                          {row.number_of_travellers === 1 ? '' : 's'}
+                        </p>
+                      </td>
+                      <td className="px-4 py-3 text-gray-900">
+                        {row.requester_name}
+                        <p className="text-xs text-gray-500">{row.department_name}</p>
+                      </td>
+                      <td className="px-4 py-3 text-gray-900">{row.destination}</td>
+                      <td className="px-4 py-3 text-gray-700">
+                        {formatDate(row.first_travel_date)}
+                      </td>
+                      <td className="px-4 py-3 text-gray-700">{row.project_code}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-gray-900">
+                        {formatCurrency(row.estimated_cost)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <StatusBadge status={row.status} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          </form>
+          )}
         </div>
 
-        {/* Security Section */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-bold text-gray-900 mb-4">Security</h3>
-          <button className="text-blue-600 hover:text-blue-700 font-medium">
-            Change Password
-          </button>
-        </div>
+        {!loading && rows.length > 0 && (
+          <p className="text-xs text-gray-500">
+            Showing {rows.length} request{rows.length === 1 ? '' : 's'}. What you
+            can see is governed by your role — the same rules the database
+            enforces through row level security.
+          </p>
+        )}
       </div>
     </MainLayout>
   )

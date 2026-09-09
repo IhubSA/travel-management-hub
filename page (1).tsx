@@ -1,24 +1,28 @@
 'use client'
 
-import React from 'react'
+import Link from 'next/link'
 import { MainLayout } from '@/components/layout/MainLayout'
+import { PageHeader } from '@/components/common'
+import { TravelRequestWizard } from '@/components/travel-request/TravelRequestWizard'
 
-export default function ApprovalsPage() {
+export default function NewTravelRequestPage() {
   return (
     <MainLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Approvals</h1>
-          <p className="text-gray-600 mt-2">Review and approve pending requests</p>
-        </div>
+        <PageHeader
+          title="New travel request"
+          description="Seven short steps. You can save a draft at any point and come back to it."
+        />
 
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="text-center py-12">
-            <div className="text-4xl mb-4">✅</div>
-            <h3 className="text-lg font-semibold text-gray-900">No pending approvals</h3>
-            <p className="text-gray-600 mt-2">All requests have been reviewed</p>
-          </div>
-        </div>
+        <nav className="text-sm text-gray-500">
+          <Link href="/travel-requests" className="hover:underline">
+            Travel requests
+          </Link>
+          <span className="mx-2">/</span>
+          <span className="text-gray-900">New request</span>
+        </nav>
+
+        <TravelRequestWizard />
       </div>
     </MainLayout>
   )

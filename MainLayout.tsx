@@ -1,6 +1,6 @@
 'use client'
 
-import React from 'react'
+import React, { useState } from 'react'
 import { Sidebar } from './Sidebar'
 import { Header } from './Header'
 
@@ -9,13 +9,21 @@ interface MainLayoutProps {
 }
 
 export function MainLayout({ children }: MainLayoutProps) {
+  // Collapse state lives here so the header and main content shift with the
+  // sidebar instead of leaving a gap (or hiding behind it).
+  const [collapsed, setCollapsed] = useState(false)
+  const offset = collapsed ? 'md:ml-20' : 'md:ml-64'
+
   return (
     <div className="min-h-screen bg-gray-50">
-      <Sidebar />
-      <Header />
-      <main className="md:ml-64 pt-20 pb-8 px-4 md:px-8">
-        {children}
-      </main>
+      <Sidebar
+        collapsed={collapsed}
+        onToggleCollapse={() => setCollapsed((c) => !c)}
+      />
+      <div className={`${offset} transition-all duration-300`}>
+        <Header />
+        <main className="px-4 pb-10 pt-6 md:px-8">{children}</main>
+      </div>
     </div>
   )
 }

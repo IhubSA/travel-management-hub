@@ -2,7 +2,31 @@
 
 A professional travel request management system for Angels Resource Centres NPO, featuring approval workflows, booking coordination, budget tracking, and automated email notifications.
 
-**Status:** Phase 3 (Authentication & Frontend) - In Development
+**Status:** Phase 3 — travel request wizard, request list/detail, role-based
+dashboards and approval queues built and verified.
+
+> **This build runs on a mock data layer, not Supabase.** Everything works —
+> you can create requests, submit them, and watch them appear in the right
+> approver's queue — but the data lives in your browser. See
+> `docs/03-DATA-LAYER-AND-WIZARD.md` for what is built and exactly how to
+> switch to Supabase (three steps, no component changes).
+
+## Trying it out
+
+Open the deployed site and use the **"Viewing as"** dropdown in the top bar to
+switch between the eleven seeded staff members. Each role sees a different
+dashboard, sidebar and approval queue:
+
+| Sign in as | To see |
+|---|---|
+| Nomsa Khumalo (Staff) | Raising a request, own requests only |
+| Sipho Dlamini / Annelie Botha (HOD) | Departmental approval queue |
+| Lerato Mokoena (Travel Officer) | The booking queue |
+| Deon van Wyk (Finance) | Cost review and budget position |
+| Miriam Ngcobo (CEO) | Budget exceptions needing a decision |
+| System Administrator | Everything, plus user administration |
+
+Settings → **Reset demo data** puts the sample data back to its starting state.
 
 ## Quick Start
 

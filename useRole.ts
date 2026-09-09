@@ -1,24 +1,49 @@
 'use client'
 
+import { useMemo } from 'react'
 import { useAuth } from '@/context/AuthContext'
-import type { Database } from '@/types/database'
-
-type UserRole = Database['public']['Enums']['user_role']
+import type { UserRole } from '@/types/database'
+import type { Viewer } from '@/services/travel-request.service'
 
 export function useRole() {
   const { profile } = useAuth()
+  const role = profile?.role ?? null
 
   return {
-    role: (profile?.user_role as UserRole | undefined) || null,
-    isSuperAdmin: profile?.user_role === 'SUPER_ADMIN',
-    isStaff: profile?.user_role === 'STAFF',
-    isHOD: profile?.user_role === 'HOD',
-    isTravelOfficer: profile?.user_role === 'TRAVEL_OFFICER',
-    isFinance: profile?.user_role === 'FINANCE',
-    isCEO: profile?.user_role === 'CEO',
-    hasRole: (role: UserRole | UserRole[]) => {
-      if (!profile?.user_role) return false
-      return Array.isArray(role) ? role.includes(profile.user_role as UserRole) : profile.user_role === role
+    role,
+    isSuperAdmin: role === 'SUPER_ADMIN',
+    isStaff: role === 'STAFF',
+    isHOD: role === 'HOD',
+    isTravelOfficer: role === 'TRAVEL_OFFICER',
+    isFinance: role === 'FINANCE',
+    isCEO: role === 'CEO',
+    /** True for any role that reviews or approves requests. */
+    isApprover:
+      role === 'HOD' ||
+      role === 'TRAVEL_OFFICER' ||
+      role === 'FINANCE' ||
+      role === 'CEO' ||
+      role === 'SUPER_ADMIN',
+    hasRole: (target: UserRole | UserRole[]) => {
+      if (!role) return false
+      return Array.isArray(target) ? target.includes(role) : role === target
     },
   }
+}
+
+/**
+ * The identity the service layer filters by. Null until the profile loads.
+ * Memoised so it can be used safely in effect dependency arrays.
+ */
+export function useViewer(): Viewer | null {
+  const { profile } = useAuth()
+
+  return useMemo(() => {
+    if (!profile) return null
+    return {
+      profileId: profile.id,
+      role: profile.role,
+      departmentId: profile.department_id,
+    }
+  }, [profile])
 }

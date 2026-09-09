@@ -53,7 +53,7 @@ export function ForgotPasswordForm() {
             <div className="text-4xl">✓</div>
             <h1 className="text-2xl font-bold text-gray-900">Check Your Email</h1>
             <p className="text-sm text-gray-600">
-              We've sent a password reset link to your email address. Please check your inbox
+              We&apos;ve sent a password reset link to your email address. Please check your inbox
               and follow the instructions to reset your password.
             </p>
           </div>
@@ -78,7 +78,7 @@ export function ForgotPasswordForm() {
         <div className="space-y-2 text-center">
           <h1 className="text-2xl font-bold text-gray-900">Reset Password</h1>
           <p className="text-sm text-gray-600">
-            Enter your email address and we'll send you a link to reset your password
+            Enter your email address and we&apos;ll send you a link to reset your password
           </p>
         </div>
 

@@ -1,8 +1,8 @@
 'use client'
 
-import React, { useState } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
 import { useRole } from '@/hooks/useRole'
 
@@ -13,24 +13,24 @@ interface NavItem {
   roles: string[]
 }
 
+const ALL_ROLES = [
+  'SUPER_ADMIN',
+  'CEO',
+  'HOD',
+  'STAFF',
+  'TRAVEL_OFFICER',
+  'FINANCE',
+]
+
 const navItems: NavItem[] = [
-  {
-    label: 'Dashboard',
-    href: '/dashboard',
-    icon: '📊',
-    roles: ['SUPER_ADMIN', 'CEO', 'HOD', 'STAFF', 'TRAVEL_OFFICER', 'FINANCE'],
-  },
-  {
-    label: 'Travel Requests',
-    href: '/travel-requests',
-    icon: '✈️',
-    roles: ['SUPER_ADMIN', 'STAFF', 'TRAVEL_OFFICER', 'HOD'],
-  },
+  { label: 'Dashboard', href: '/dashboard', icon: '📊', roles: ALL_ROLES },
+  // Every role can raise and track a travel request (PHASE 1, §3.2).
+  { label: 'Travel Requests', href: '/travel-requests', icon: '✈️', roles: ALL_ROLES },
   {
     label: 'Approvals',
     href: '/approvals',
     icon: '✅',
-    roles: ['SUPER_ADMIN', 'HOD', 'TRAVEL_OFFICER', 'CEO'],
+    roles: ['SUPER_ADMIN', 'HOD', 'TRAVEL_OFFICER', 'FINANCE', 'CEO'],
   },
   {
     label: 'Finance',
@@ -50,25 +50,26 @@ const navItems: NavItem[] = [
     icon: '👥',
     roles: ['SUPER_ADMIN', 'CEO'],
   },
-  {
-    label: 'Settings',
-    href: '/settings',
-    icon: '⚙️',
-    roles: ['SUPER_ADMIN', 'CEO', 'STAFF'],
-  },
-  {
-    label: 'Profile',
-    href: '/profile',
-    icon: '👤',
-    roles: ['SUPER_ADMIN', 'CEO', 'HOD', 'STAFF', 'TRAVEL_OFFICER', 'FINANCE'],
-  },
+  { label: 'Settings', href: '/settings', icon: '⚙️', roles: ALL_ROLES },
+  { label: 'Profile', href: '/profile', icon: '👤', roles: ALL_ROLES },
 ]
 
-export function Sidebar() {
+interface SidebarProps {
+  /** Controlled by MainLayout so the content area shifts with the sidebar. */
+  collapsed?: boolean
+  onToggleCollapse?: () => void
+}
+
+export function Sidebar({ collapsed, onToggleCollapse }: SidebarProps = {}) {
   const [isOpen, setIsOpen] = useState(true)
-  const [isCollapsed, setIsCollapsed] = useState(false)
+  const [ownCollapsed, setOwnCollapsed] = useState(false)
+
+  // Fall back to local state when rendered without a controlling parent.
+  const isCollapsed = collapsed ?? ownCollapsed
+  const setIsCollapsed = onToggleCollapse ?? (() => setOwnCollapsed((c) => !c))
   const router = useRouter()
-  const { user, logout } = useAuth()
+  const pathname = usePathname()
+  const { profile, logout } = useAuth()
   const { role } = useRole()
 
   // Filter nav items based on user role
@@ -110,7 +111,7 @@ export function Sidebar() {
             </div>
           )}
           <button
-            onClick={() => setIsCollapsed(!isCollapsed)}
+            onClick={() => setIsCollapsed()}
             className="hidden md:block text-gray-400 hover:text-white"
             title={isCollapsed ? 'Expand' : 'Collapse'}
           >
@@ -122,25 +123,41 @@ export function Sidebar() {
         {!isCollapsed && (
           <div className="p-4 bg-gray-800 mx-2 mt-4 rounded-lg">
             <p className="text-xs text-gray-400">Logged in as</p>
-            <p className="text-sm font-medium truncate">{user?.email}</p>
-            {role && <p className="text-xs text-blue-400 mt-1">{role}</p>}
+            <p className="text-sm font-medium truncate">
+              {profile ? `${profile.first_name} ${profile.last_name}` : '—'}
+            </p>
+            <p className="text-xs text-gray-400 truncate">{profile?.job_title}</p>
+            {role && (
+              <p className="text-xs text-blue-400 mt-1">{role.replace(/_/g, ' ')}</p>
+            )}
           </div>
         )}
 
         {/* Navigation Items */}
         <nav className="flex-1 px-4 py-6">
           <div className="space-y-2">
-            {visibleItems.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-800 transition-colors"
-                title={isCollapsed ? item.label : ''}
-              >
-                <span className="text-xl">{item.icon}</span>
-                {!isCollapsed && <span className="text-sm font-medium">{item.label}</span>}
-              </Link>
-            ))}
+            {visibleItems.map((item) => {
+              const isActive =
+                pathname === item.href || pathname?.startsWith(`${item.href}/`)
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  aria-current={isActive ? 'page' : undefined}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                    isActive
+                      ? 'bg-blue-600 text-white'
+                      : 'hover:bg-gray-800 text-gray-100'
+                  }`}
+                  title={isCollapsed ? item.label : ''}
+                >
+                  <span className="text-xl">{item.icon}</span>
+                  {!isCollapsed && (
+                    <span className="text-sm font-medium">{item.label}</span>
+                  )}
+                </Link>
+              )
+            })}
           </div>
         </nav>
 
@@ -167,10 +184,6 @@ export function Sidebar() {
         </div>
       </aside>
 
-      {/* Main Content Spacer */}
-      <div className={`${isCollapsed ? 'md:ml-20' : 'md:ml-64'} transition-all duration-300`}>
-        {/* Content goes here */}
-      </div>
     </>
   )
 }

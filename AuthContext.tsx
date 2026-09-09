@@ -1,189 +1,243 @@
 'use client'
 
-import React, { createContext, useContext, useEffect, useState } from 'react'
+// ============================================================================
+// Auth context
+//
+// MOCK MODE: the app signs in as one of the seeded profiles in mock-db.ts.
+// The active identity can be switched at runtime (see the role switcher in the
+// header), which is how all six role dashboards get tested without a backend.
+//
+// TO SWITCH TO SUPABASE: set MOCK_AUTH to false. The real Supabase branch
+// below fetches the profile row for the signed-in auth user; everything that
+// consumes this context (useRole, ProtectedRoute, every page) keeps working
+// because the shape of `profile` is the same ProfileRow either way.
+// ============================================================================
+
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import type { User, Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
-import type { Database } from '@/types/database'
+import { db, SEED_PROFILE_IDS } from '@/lib/mock-db'
+import type { ProfileRow, UserRole } from '@/types/database'
 
-type UserProfile = Database['public']['Tables']['profiles']['Row']
+/** Flip to false once the Supabase database and auth are live. */
+const MOCK_AUTH = true
+
+/** Which seeded profile each role signs in as. */
+const ROLE_TO_PROFILE_ID: Record<UserRole, string> = {
+  SUPER_ADMIN: SEED_PROFILE_IDS.ADMIN,
+  CEO: SEED_PROFILE_IDS.CEO,
+  FINANCE: SEED_PROFILE_IDS.FINANCE,
+  TRAVEL_OFFICER: SEED_PROFILE_IDS.TRAVEL_OFFICER,
+  HOD: SEED_PROFILE_IDS.HOD_OPS,
+  STAFF: SEED_PROFILE_IDS.STAFF_NOMSA,
+}
+
+const STORAGE_KEY = 'arc-travel-hub.demo-profile-id'
+
+/** Default identity when nothing has been chosen yet. */
+const DEFAULT_PROFILE_ID = SEED_PROFILE_IDS.ADMIN
 
 interface AuthContextType {
   user: User | null
-  profile: UserProfile | null
+  profile: ProfileRow | null
   session: Session | null
   loading: boolean
   error: string | null
+  /** True while running on the mock data layer. */
+  isMock: boolean
+  /** Sign in as a different seeded profile (demo only). */
+  switchProfile: (profileId: string) => void
+  /** Sign in as the seeded profile for a role (demo only). */
+  switchRole: (role: UserRole) => void
   logout: () => Promise<void>
   refreshSession: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
+function mockUserFor(profile: ProfileRow): User {
+  return {
+    id: profile.auth_user_id,
+    email: profile.email,
+    aud: 'authenticated',
+    created_at: profile.created_at,
+    app_metadata: {},
+    user_metadata: {
+      first_name: profile.first_name,
+      last_name: profile.last_name,
+    },
+  } as unknown as User
+}
+
+function mockSessionFor(user: User): Session {
+  return {
+    user,
+    access_token: 'mock-access-token',
+    refresh_token: 'mock-refresh-token',
+    token_type: 'bearer',
+    expires_in: 3600,
+    expires_at: Math.floor(Date.now() / 1000) + 3600,
+  } as unknown as Session
+}
+
+function readStoredProfileId(): string {
+  if (typeof window === 'undefined') return DEFAULT_PROFILE_ID
+  try {
+    const stored = window.localStorage.getItem(STORAGE_KEY)
+    if (stored && db.profiles.some((p) => p.id === stored)) return stored
+  } catch {
+    // Storage unavailable (private window, blocked cookies) — use the default.
+  }
+  return DEFAULT_PROFILE_ID
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
-  const [profile, setProfile] = useState<UserProfile | null>(null)
+  const [profile, setProfile] = useState<ProfileRow | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Initialize auth state
+  const applyMockProfile = useCallback((profileId: string) => {
+    const found =
+      db.profiles.find((p) => p.id === profileId) ??
+      db.profiles.find((p) => p.id === DEFAULT_PROFILE_ID) ??
+      db.profiles[0]
+
+    if (!found) {
+      setError('No seeded profiles available')
+      return
+    }
+
+    const mockUser = mockUserFor(found)
+    setUser(mockUser)
+    setSession(mockSessionFor(mockUser))
+    setProfile(found)
+    setError(null)
+
+    try {
+      window.localStorage.setItem(STORAGE_KEY, found.id)
+    } catch {
+      // Non-fatal — the identity just won't survive a refresh.
+    }
+  }, [])
+
+  // Initialise
   useEffect(() => {
-    const initializeAuth = async () => {
+    if (MOCK_AUTH) {
+      applyMockProfile(readStoredProfileId())
+      setLoading(false)
+      return
+    }
+
+    // ---- Real Supabase path (inactive while MOCK_AUTH is true) ----
+    let subscription: { unsubscribe: () => void } | undefined
+
+    const initialise = async () => {
       try {
-        // MOCK AUTH - Remove this when using real Supabase
-        const isMockMode = true
-
-        if (isMockMode) {
-          // Create mock user for development/demo
-          const mockUser = {
-            id: 'mock-user-001',
-            email: 'demo@angels-travel.example.com',
-            aud: 'authenticated',
-            created_at: new Date().toISOString(),
-            user_metadata: {},
-            app_metadata: {},
-          } as any
-
-          const mockSession = {
-            user: mockUser,
-            session: null,
-            access_token: 'mock-token',
-            refresh_token: 'mock-refresh',
-            expires_in: 3600,
-            expires_at: Date.now() + 3600000,
-            token_type: 'Bearer',
-          } as any
-
-          // Create mock profile - change role here to test different dashboards
-          const mockProfile = {
-            id: 'mock-user-001',
-            email: 'demo@angels-travel.example.com',
-            first_name: 'Demo',
-            last_name: 'User',
-            user_role: 'SUPER_ADMIN', // Change to: SUPER_ADMIN, CEO, HOD, STAFF, TRAVEL_OFFICER, FINANCE
-            department_id: 'dept-001',
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          } as any
-
-          setSession(mockSession)
-          setUser(mockUser)
-          setProfile(mockProfile)
-          setLoading(false)
-          return
-        }
-
-        // Check if we have an existing session
         const {
           data: { session: existingSession },
           error: sessionError,
         } = await supabase.auth.getSession()
-
         if (sessionError) throw sessionError
 
         if (existingSession?.user) {
           setSession(existingSession)
           setUser(existingSession.user)
 
-          // Fetch user profile
           const { data: profileData, error: profileError } = await supabase
             .from('profiles')
             .select('*')
             .eq('auth_user_id', existingSession.user.id)
             .single()
 
-          if (profileError && profileError.code !== 'PGRST116') {
-            // PGRST116 = no rows returned, which is expected for new users
-            throw profileError
-          }
-
-          if (profileData) {
-            setProfile(profileData)
-          }
+          if (profileError && profileError.code !== 'PGRST116') throw profileError
+          if (profileData) setProfile(profileData as ProfileRow)
         }
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Failed to initialize auth'
-        setError(message)
-        console.error('Auth initialization error:', err)
+        setError(err instanceof Error ? err.message : 'Failed to initialise auth')
       } finally {
         setLoading(false)
       }
     }
 
-    initializeAuth()
+    initialise()
 
-    // Subscribe to auth state changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
+    const listener = supabase.auth.onAuthStateChange(async (_event, newSession) => {
       setSession(newSession)
-      setUser(newSession?.user || null)
+      setUser(newSession?.user ?? null)
       setError(null)
 
-      // Fetch profile when user changes
       if (newSession?.user) {
-        try {
-          const { data: profileData, error: profileError } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('auth_user_id', newSession.user.id)
-            .single()
-
-          if (profileError && profileError.code !== 'PGRST116') {
-            throw profileError
-          }
-
-          setProfile(profileData || null)
-        } catch (err) {
-          console.error('Failed to fetch profile:', err)
-        }
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('auth_user_id', newSession.user.id)
+          .single()
+        setProfile((profileData as unknown as ProfileRow | null) ?? null)
       } else {
         setProfile(null)
       }
     })
+    subscription = listener.data.subscription
 
-    return () => {
-      subscription?.unsubscribe()
-    }
-  }, [])
+    return () => subscription?.unsubscribe()
+  }, [applyMockProfile])
 
-  const logout = async () => {
+  const switchProfile = useCallback(
+    (profileId: string) => {
+      if (!MOCK_AUTH) return
+      applyMockProfile(profileId)
+    },
+    [applyMockProfile]
+  )
+
+  const switchRole = useCallback(
+    (role: UserRole) => {
+      if (!MOCK_AUTH) return
+      applyMockProfile(ROLE_TO_PROFILE_ID[role])
+    },
+    [applyMockProfile]
+  )
+
+  const logout = useCallback(async () => {
     try {
       setLoading(true)
-      // In mock mode, just clear the state
-      const isMockMode = true
-      if (!isMockMode) {
-        const { error } = await supabase.auth.signOut()
-        if (error) throw error
+      if (!MOCK_AUTH) {
+        const { error: signOutError } = await supabase.auth.signOut()
+        if (signOutError) throw signOutError
+      } else {
+        try {
+          window.localStorage.removeItem(STORAGE_KEY)
+        } catch {
+          // Non-fatal.
+        }
       }
-
       setUser(null)
       setProfile(null)
       setSession(null)
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to logout'
-      setError(message)
+      setError(err instanceof Error ? err.message : 'Failed to log out')
       throw err
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
-  const refreshSession = async () => {
+  const refreshSession = useCallback(async () => {
+    if (MOCK_AUTH) return
     try {
-      const { data, error } = await supabase.auth.refreshSession()
-      if (error) throw error
-
+      const { data, error: refreshError } = await supabase.auth.refreshSession()
+      if (refreshError) throw refreshError
       if (data.session) {
         setSession(data.session)
         setUser(data.session.user)
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to refresh session'
-      setError(message)
+      setError(err instanceof Error ? err.message : 'Failed to refresh session')
       throw err
     }
-  }
+  }, [])
 
   return (
     <AuthContext.Provider
@@ -193,6 +247,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         session,
         loading,
         error,
+        isMock: MOCK_AUTH,
+        switchProfile,
+        switchRole,
         logout,
         refreshSession,
       }}
